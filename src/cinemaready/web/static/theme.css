@@ -85,6 +85,9 @@ tr:hover td { background: var(--wash); }
 .state { white-space: nowrap; padding: 2px 5px; border: 1px solid var(--line); border-radius: min(4px, var(--radius)); color: var(--quiet); }
 .state[data-state=已分派] { color: var(--accent); border-color: var(--accent); }
 .state[data-state=暂停] { color: var(--hold-color, #ad4a38); border-color: currentColor; }
+.state[data-state=入评] { color: #1d6f42; border-color: currentColor; }
+.state[data-state=读数变更退评], .state[data-state=同版实绩冲突], .state[data-state=入站隔离] { color: var(--hold-color, #ad4a38); border-color: currentColor; }
+.state[data-state=待实绩], .state[data-state=无原预测] { color: var(--quiet); border-color: var(--line); }
 .detail-note { margin: 0 var(--pad) 10px; }
 .timeline .record-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); padding: 6px var(--pad) 8px; gap: 11px 18px; margin: 8px 0 0; }
 .record-fields dt { color: var(--quiet); }

@@ -49,7 +49,7 @@ function rowsTable(records, keys, options={}) {
                 link.type = 'button';
                 link.addEventListener('click', () => options.choose(value));
                 cell.append(link);
-            } else if (key === 'state') {
+            } else if (key === 'state' || key === '复核状态') {
                 const badge = node('span',value[key],'state');
                 badge.dataset.state = value[key];
                 cell.append(badge);

@@ -16,6 +16,7 @@ AI/ML · 传统ML · 中型
 | M6 | 排片分组 | 差异定位和外推审查 | `src/cinemaready/programming_mix/service.py` | `tests/test_programming_mix.py` |
 | M7 | 清场计划 | 硬规则与额度分配 | `src/cinemaready/usher_windows/service.py` | `tests/test_usher_windows.py` |
 | M8 | 开厅交接 | 单据及额度证据 | `src/cinemaready/hall_handover/service.py` | `tests/test_hall_handover.py` |
+| M9 | 清场估时复核单 | 晚到实绩、退评与冲突撤记 | `src/cinemaready/clearance_review/service.py` | `tests/test_clearance_review.py` |
 
 ## 深度登记
 
@@ -30,3 +31,7 @@ AI/ML · 传统ML · 中型
 | TRAP-44 | 校准样本不足 | 分派前转人工判读并保留原因 | `src/cinemaready/slot_backcheck/service.py` | `tests/test_slot_backcheck.py::test_empty_calibration_requires_review` |
 | TRAP-53 | 单条推断与混批 | 复用冻结参数，各条估计完全一致 | `src/cinemaready/cleanup_trend/service.py` | `tests/test_cleanup_trend.py::test_input_batch_invariance` |
 | TRAP-54 | 特征版本与模型不配对 | 拒绝继续推断并要求重拟合 | `src/cinemaready/cleanup_trend/service.py` | `tests/test_cleanup_trend.py::test_mismatched_model_input_version_fails` |
+| TRAP-61 | 回执改写签发读数 | 旧预测退出计分，换版也不恢复，须重新签发 | `src/cinemaready/clearance_review/service.py` | `tests/test_clearance_review.py::test_overwritten_sealed_reading_withdraws_old_forecast` |
+| TRAP-62 | 同版实绩冲突后澄清 | 冲突先撤记，换版记录采信后恢复入评 | `src/cinemaready/clearance_review/service.py` | `tests/test_clearance_review.py::test_clarified_revision_restores_scoring` |
+| TRAP-63 | 同批复跑重复提交 | 复核为纯函数，误差只计一次且逐行一致 | `src/cinemaready/clearance_review/service.py` | `tests/test_clearance_review.py::test_review_sheet_is_idempotent_for_same_backfill` |
+| TRAP-64 | 晚到实绩早于复核工日才可见 | 到站日晚于 `review_as_of` 入站屏蔽，确认完工后才入评 | `src/cinemaready/clearance_review/service.py` | `tests/test_clearance_review.py::test_late_result_enters_scoring_after_completion` |

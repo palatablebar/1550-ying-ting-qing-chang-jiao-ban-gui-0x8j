@@ -10,6 +10,7 @@ from .slot_backcheck import service as calibration_service
 from .programming_mix import service as monitor_service
 from .usher_windows import service as dispatch_service
 from .hall_handover import service as audit_service
+from .clearance_review import service as review_service
 from .turnover_calendar import contracts as window_contract
 
 PRESET = Path(__file__).resolve().parents[2] / 'sample_data' / 'show_handoffs_sample.json'
@@ -20,7 +21,8 @@ MODULES = (('show_handoffs', '场次交接'),
  ('slot_backcheck', '窗口复算'),
  ('programming_mix', '排片分组'),
  ('usher_windows', '清场计划'),
- ('hall_handover', '开厅交接'))
+ ('hall_handover', '开厅交接'),
+ ('clearance_review', '清场估时复核单'))
 DISPLAY = {'title': '影厅清场交班轨',
  'object_name': '影厅场次',
  'unit': '分钟',
@@ -111,17 +113,49 @@ class ShiftDossier:
     def seal(self, plan, mode):
         return audit_service.close_batch(self.raw_forms,self.accepted,self.history,plan,self.feature_stamp.fingerprint,self.forecaster.name,mode)
 
+    def sealed_forecasts(self, checked_live, calibration, receipt):
+        # 冻结签发时的预测、校准区间和读数，作为清场估时复核底账。
+        return review_service.seal_forecasts(
+            checked_live, self.history.live, receipt,
+            self.feature_stamp.fingerprint, self.forecaster.name, calibration,
+        )
 
-def execute(documents, capacity=12, mode='balanced', *, as_of=96):
+    def review_sheet(self, sealed, backfill, review_day, intake_issues=()):
+        return review_service.build_review_sheet(sealed, backfill, review_day,
+                                                 intake_issues=intake_issues)
+
+
+def execute(documents, capacity=12, mode='balanced', *, as_of=96, backfill=None, review_as_of=None):
     if type(as_of) is not int or as_of not in range(91,3651):
         raise ValueError('截至工日超出当前排班表')
     if not isinstance(documents,(tuple,list)) or not 1<=len(documents)<=2500:
         raise ValueError('需要 1 至 2500 份可识别单据')
+    if backfill is not None and (not isinstance(backfill,(tuple,list)) or not 1<=len(backfill)<=2500):
+        raise ValueError('补录批次需要 1 至 2500 份单据')
+    review_day = as_of if review_as_of is None else review_as_of
+    if type(review_day) is not int or review_day < as_of or review_day not in range(91,3651):
+        raise ValueError('复核工日不得早于签发截止日且需在排班表内')
     dossier = ShiftDossier(documents,as_of)
     fitted_calibration, estimates = dossier.grading()
     evaluated, checked_live, drift = dossier.verification(estimates,fitted_calibration)
     allocation = dispatch_service.plan_jobs(checked_live,drift.domain,capacity,mode)
     closed = dossier.seal(allocation,mode)
+    sealed_ledger = dossier.sealed_forecasts(checked_live, fitted_calibration, closed)
+    # 默认补录为当前批次中属于当班时段的单据（含入站隔离的同版冲突单）；
+    # 历史窗口不进入复核底账。
+    live_begin = dossier.calendar.live.begin
+    default_backfill = [row for row in documents
+                        if isinstance(row, dict) and row.get('day') is not None
+                        and row['day'] >= live_begin]
+    live_issue_keys = {row.get('key') for row in default_backfill}
+    live_issues = tuple(issue for issue in dossier.accepted.issues
+                        if issue.key in live_issue_keys)
+    review_sheet = dossier.review_sheet(
+        sealed_ledger,
+        backfill if backfill is not None else default_backfill,
+        review_day,
+        intake_issues=live_issues,
+    )
     intake,windows,state,features,kernel = dossier.accepted,dossier.history,dossier.feature_stamp,dossier.prepared,dossier.forecaster
     scored = estimates['live']
     performance = calibration_service.performance(evaluated)
@@ -156,6 +190,13 @@ def execute(documents, capacity=12, mode='balanced', *, as_of=96):
     ]
     details[6]['operating_rows'] = operating_rows
     details[6]['operating_title'] = '清场倒排窗口'
+    review_rows = review_service.review_evidence(review_sheet)
+    review_summary = review_service.review_metrics(review_sheet)
+    details.append(stage_at(
+        8,
+        f'复核凭证 {review_sheet.run_id} · 入评 {review_sheet.summary.scored} / 签发 {review_sheet.summary.sealed}',
+        (*review_summary, *review_rows),
+    ))
     points = [{'label': row['key'], 'value': row['estimate'], 'state': row['state'], 'zone': row['zone'],
                'upper': row['interval'], 'cost': row['cost']} for row in sorted(row_list, key=lambda row: row['key'])]
     def estimate(vector):
@@ -178,7 +219,11 @@ def execute(documents, capacity=12, mode='balanced', *, as_of=96):
  'spill': ('报告污渍点', '处'),
  'minutes': ('片尾结束至下一场', 'min'),
  'bins': ('厅外垃圾桶', '个'),
- 'stairs': ('清理阶梯', '级')}, 'metrics': overview, 'performance': replay_metrics(performance), 'rows': row_list, 'series': points}
+ 'stairs': ('清理阶梯', '级')}, 'metrics': overview, 'performance': replay_metrics(performance), 'rows': row_list, 'series': points,
+              'clearance_review': {'run_id': review_sheet.run_id, 'feature_stamp': review_sheet.feature_stamp,
+                                   'model': review_sheet.model, 'calibration': review_sheet.calibration_method,
+                                   'summary': review_summary,
+                                   'rows': review_service.review_evidence(review_sheet)}}
     return overview_report
 
 

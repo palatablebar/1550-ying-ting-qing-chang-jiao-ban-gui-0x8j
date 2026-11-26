@@ -8,8 +8,11 @@
 | `GET /api/cinemaready/overview` | 默认额度和样例处置 |
 | `POST /api/cinemaready/run` | 用 `capacity` 和 `strategy` 调整派单，也可同时提供 `records` 与 `as_of` |
 | `GET /api/cinemaready/stages/<环节>` | 样例的分环节核对，可传相同额度、策略 |
+| `POST /api/cinemaready/run`（`backfill` + `review_as_of`） | 用补录批次对签发底账做清场估时复核 |
 
 导入 JSON 对象时 `records` 为 1–2500 条单据，`as_of` 为整数工日；默认第 96 日。额度接受 1–60，策略接受 `balanced` 或 `focus`。入站异常保留于第一环节。整批缺少成熟窗口时响应 422 并给出原因。
+
+补录复核时 `backfill` 为 1–2500 条晚到单据或换版回执，必须同时提交签发批次 `records`；`review_as_of` 为复核工日，不得早于 `as_of`。复核单在第九环节 `clearance_review` 展示，状态含入评、待实绩、读数变更退评、同版实绩冲突、入站隔离和无原预测。同批复跑不重复计分，原模型、校准与工位凭证保持冻结。
 
 ```sh
 docker compose exec -T app python -m cinemaready.entry evaluate --input sample_data/show_handoffs_sample.json --capacity 9

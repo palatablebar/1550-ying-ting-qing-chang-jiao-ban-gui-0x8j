@@ -47,12 +47,22 @@ def run_case():
     if not isinstance(request_data,dict):
         return failure('请求体应为 JSON 对象')
     fields=set(request_data)
-    if fields-{'capacity','strategy','records','as_of'}:
+    if fields-{'capacity','strategy','records','as_of','backfill','review_as_of'}:
         return failure('包含不支持的字段')
     try:
         stock,method=seating(request_data.get('capacity',12),request_data.get('strategy','balanced'))
+        backfill=request_data.get('backfill')
+        if backfill is not None and (not isinstance(backfill,list) or not 1<=len(backfill)<=2500):
+            raise ValueError('补录批次需要 1 至 2500 份单据')
         if 'records' in fields:
-            return execute(request_data['records'],stock,method,as_of=request_data.get('as_of',96))
+            review_day=request_data.get('review_as_of',request_data.get('as_of',96))
+            if type(review_day) is not int:
+                raise ValueError('复核工日须为整数')
+            return execute(request_data['records'],stock,method,
+                           as_of=request_data.get('as_of',96),
+                           backfill=backfill, review_as_of=review_day)
+        if backfill is not None:
+            raise ValueError('补录复核需一并提交签发批次 records')
         if 'as_of' in fields:
             raise ValueError('调整截止日时需一并提交单据')
         return CACHE(stock,method)
